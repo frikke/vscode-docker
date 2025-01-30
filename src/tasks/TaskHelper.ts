@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IActionContext, UserCancelledError } from '@microsoft/vscode-azext-utils';
+import { ContainerPlatform } from '@microsoft/vscode-container-client';
 import * as path from 'path';
-import { CancellationToken, ConfigurationTarget, ExtensionContext, l10n, QuickPickItem, Task, tasks, workspace, WorkspaceFolder } from 'vscode';
+import { CancellationToken, ConfigurationTarget, ExtensionContext, QuickPickItem, Task, WorkspaceFolder, l10n, tasks, workspace } from 'vscode';
 import { DebugConfigurationBase } from '../debugging/DockerDebugConfigurationBase';
 import { DockerDebugConfiguration } from '../debugging/DockerDebugConfigurationProvider';
-import { DockerPlatform } from '../debugging/DockerPlatformHelper';
+import { DockerPlatform } from '../debugging/DockerDebugPlatformHelper';
 import { getValidImageName, getValidImageNameWithTag } from '../utils/getValidImageName';
 import { pathNormalize } from '../utils/pathNormalize';
 import { resolveVariables } from '../utils/resolveVariables';
@@ -18,12 +19,13 @@ import { DockerComposeTaskProvider } from './DockerComposeTaskProvider';
 import { DockerPseudoterminal } from './DockerPseudoterminal';
 import { DockerContainerVolume, DockerRunOptions, DockerRunTaskDefinitionBase } from './DockerRunTaskDefinitionBase';
 import { DockerRunTask, DockerRunTaskDefinition, DockerRunTaskProvider } from './DockerRunTaskProvider';
+import { TaskDefinitionBase } from './TaskDefinitionBase';
+import { NetSdkRunTaskProvider } from './netSdk/NetSdkRunTaskProvider';
 import { netCoreTaskHelper } from './netcore/NetCoreTaskHelper';
 import { nodeTaskHelper } from './node/NodeTaskHelper';
 import { pythonTaskHelper } from './python/PythonTaskHelper';
-import { TaskDefinitionBase } from './TaskDefinitionBase';
 
-export type DockerTaskProviderName = 'docker-build' | 'docker-run' | 'docker-compose';
+export type DockerTaskProviderName = 'docker-build' | 'docker-run' | 'docker-compose' | 'dotnet-container-sdk';
 
 export interface DockerTaskContext {
     folder: WorkspaceFolder;
@@ -76,7 +78,8 @@ export function registerTaskProviders(ctx: ExtensionContext): void {
     const helpers = {
         netCore: netCoreTaskHelper,
         node: nodeTaskHelper,
-        python: pythonTaskHelper
+        python: pythonTaskHelper,
+        netSdk: undefined
     };
 
     ctx.subscriptions.push(
@@ -97,6 +100,13 @@ export function registerTaskProviders(ctx: ExtensionContext): void {
         tasks.registerTaskProvider(
             'docker-compose',
             new DockerComposeTaskProvider()
+        )
+    );
+
+    ctx.subscriptions.push(
+        tasks.registerTaskProvider(
+            'dotnet-container-sdk',
+            new NetSdkRunTaskProvider()
         )
     );
 }
@@ -252,4 +262,27 @@ async function findTaskByLabel(allTasks: TaskDefinitionBase[], label: string): P
 
 async function findTaskByType(allTasks: TaskDefinitionBase[], type: string): Promise<TaskDefinitionBase | undefined> {
     return allTasks.find(t => t.type === type);
+}
+
+/**
+ * Normalizes a platform string or object to a standardized `ContainerPlatform` object.
+ *
+ * @param platform The platform string or object to normalize.
+ * @returns A standardized `ContainerPlatform` object.
+ * @throws An error if the platform string is malformed.
+ */
+export function normalizePlatform(platform: string | ContainerPlatform): ContainerPlatform | undefined {
+
+    if (platform && typeof platform === 'string') {
+        const [os, ...architectureParts] = platform.split('/');
+        const architecture = architectureParts.join('/');
+
+        if (!os || !architecture) {
+            throw new Error('Platform string is malformed. It should be in the format "{os}/{architecture}".');
+        }
+
+        return { os, architecture };
+    }
+
+    return platform as ContainerPlatform || undefined;
 }

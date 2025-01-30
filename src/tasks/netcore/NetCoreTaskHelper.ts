@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { parseError } from '@microsoft/vscode-azext-utils';
+import { normalizeContainerOS } from '@microsoft/vscode-container-client';
 import * as fse from 'fs-extra';
 import * as os from 'os';
 import * as path from 'path';
-import { l10n, WorkspaceFolder } from 'vscode';
+import { WorkspaceFolder, l10n } from 'vscode';
 import { getContainerSecretsFolders, getHostSecretsFolders } from '../../debugging/netcore/AspNetSslHelper';
 import { NetCoreDebugOptions } from '../../debugging/netcore/NetCoreDebugHelper';
 import { vsDbgInstallBasePath } from '../../debugging/netcore/VsDbgHelper';
@@ -19,7 +20,7 @@ import { DockerBuildOptions, DockerBuildTaskDefinitionBase } from '../DockerBuil
 import { DockerBuildTaskDefinition } from '../DockerBuildTaskProvider';
 import { DockerContainerVolume, DockerRunOptions, DockerRunTaskDefinitionBase } from '../DockerRunTaskDefinitionBase';
 import { DockerRunTaskDefinition } from '../DockerRunTaskProvider';
-import { addVolumeWithoutConflicts, DockerBuildTaskContext, DockerRunTaskContext, DockerTaskContext, DockerTaskScaffoldContext, getDefaultContainerName, getDefaultImageName, inferImageName, TaskHelper } from '../TaskHelper';
+import { DockerBuildTaskContext, DockerRunTaskContext, DockerTaskContext, DockerTaskScaffoldContext, TaskHelper, addVolumeWithoutConflicts, getDefaultContainerName, getDefaultImageName, inferImageName } from '../TaskHelper';
 import { updateBlazorManifest } from './updateBlazorManifest';
 
 export interface NetCoreTaskOptions {
@@ -74,6 +75,10 @@ export class NetCoreTaskHelper implements TaskHelper {
                     dockerfile: unresolveWorkspaceFolder(context.dockerfile, context.folder),
                     /* eslint-disable-next-line no-template-curly-in-string */
                     context: '${workspaceFolder}',
+                    platform: {
+                        os: normalizeContainerOS(options?.platformOS),
+                        architecture: 'amd64'
+                    },
                     pull: true
                 },
                 netCore: {
@@ -140,6 +145,9 @@ export class NetCoreTaskHelper implements TaskHelper {
         runOptions.containerName = runOptions.containerName || getDefaultContainerName(context.folder.name);
         runOptions.os = runOptions.os || 'Linux';
         runOptions.image = inferImageName(runDefinition as DockerRunTaskDefinition, context, context.folder.name, 'dev');
+        if (helperOptions.enableDebugging) {
+            runOptions.entrypoint ??= runOptions.os === 'Windows' ? 'cmd.exe' : '/bin/sh';
+        }
 
         const ssl = !!helperOptions.configureSsl; // SSL will be enabled only if helperOptions.configureSsl is explicitly true
         context.actionContext.telemetry.properties.netCoreSslSetting = helperOptions.configureSsl === undefined ? 'undefined' : helperOptions.configureSsl.toString();
@@ -187,7 +195,9 @@ export class NetCoreTaskHelper implements TaskHelper {
 
     private async inferUserSecrets(helperOptions: NetCoreTaskOptions): Promise<boolean> {
         const contents = await fse.readFile(helperOptions.appProject);
-        return UserSecretsRegex.test(contents.toString());
+        // Remove comments so we don't match a commented tag
+        const noComments = contents.toString().replace(/<!--.*?-->/gs, "");
+        return UserSecretsRegex.test(noComments);
     }
 
     private async inferVolumes(folder: WorkspaceFolder, runOptions: DockerRunOptions, helperOptions: NetCoreTaskOptions, ssl: boolean, userSecrets: boolean): Promise<DockerContainerVolume[]> {

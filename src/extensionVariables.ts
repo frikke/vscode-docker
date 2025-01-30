@@ -4,17 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AzExtTreeDataProvider, AzExtTreeItem, IExperimentationServiceAdapter } from '@microsoft/vscode-azext-utils';
-import { ExtensionContext, TreeView } from 'vscode';
+import { DockerHubRegistryDataProvider, GenericRegistryV2DataProvider, GitHubRegistryDataProvider } from '@microsoft/vscode-docker-registries';
+import { ExtensionContext, StatusBarItem, TreeView } from 'vscode';
 import { ContainerRuntimeManager } from './runtimes/ContainerRuntimeManager';
+import { OrchestratorRuntimeManager } from './runtimes/OrchestratorRuntimeManager';
+import { runWithDefaults as runWithDefaultsImpl, streamWithDefaults as streamWithDefaultsImpl } from './runtimes/runners/runWithDefaults';
 import { IActivityMeasurementService } from './telemetry/ActivityMeasurementService';
 import { ContainersTreeItem } from './tree/containers/ContainersTreeItem';
 import { ContextsTreeItem } from './tree/contexts/ContextsTreeItem';
 import { ImagesTreeItem } from './tree/images/ImagesTreeItem';
 import { NetworksTreeItem } from './tree/networks/NetworksTreeItem';
-import { RegistriesTreeItem } from './tree/registries/RegistriesTreeItem';
+import { AzureRegistryDataProvider } from './tree/registries/Azure/AzureRegistryDataProvider';
+import { UnifiedRegistryItem, UnifiedRegistryTreeDataProvider } from './tree/registries/UnifiedRegistryTreeDataProvider';
 import { VolumesTreeItem } from './tree/volumes/VolumesTreeItem';
-import { OrchestratorRuntimeManager } from './runtimes/OrchestratorRuntimeManager';
-import { runWithDefaults as runWithDefaultsImpl, streamWithDefaults as streamWithDefaultsImpl } from './runtimes/runners/runWithDefaults';
 import { AzExtLogOutputChannelWrapper } from './utils/AzExtLogOutputChannelWrapper';
 
 /**
@@ -45,9 +47,13 @@ export namespace ext {
 
     export const prefix: string = 'docker';
 
-    export let registriesTree: AzExtTreeDataProvider;
-    export let registriesTreeView: TreeView<AzExtTreeItem>;
-    export let registriesRoot: RegistriesTreeItem;
+    export let registriesTree: UnifiedRegistryTreeDataProvider;
+    export let registriesTreeView: TreeView<UnifiedRegistryItem<unknown>>;
+    export let registriesRoot: UnifiedRegistryTreeDataProvider;
+    export let genericRegistryV2DataProvider: GenericRegistryV2DataProvider;
+    export let azureRegistryDataProvider: AzureRegistryDataProvider;
+    export let dockerHubRegistryDataProvider: DockerHubRegistryDataProvider;
+    export let githubRegistryDataProvider: GitHubRegistryDataProvider;
 
     export let volumesTree: AzExtTreeDataProvider;
     export let volumesTreeView: TreeView<AzExtTreeItem>;
@@ -62,4 +68,6 @@ export namespace ext {
     export let orchestratorManager: OrchestratorRuntimeManager;
     export const runWithDefaults = runWithDefaultsImpl;
     export const streamWithDefaults = streamWithDefaultsImpl;
+
+    export let dockerContextStatusBarItem: StatusBarItem;
 }

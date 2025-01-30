@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See LICENSE.md in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
 import { AzExtParentTreeItem, AzExtTreeItem, IActionContext } from "@microsoft/vscode-azext-utils";
+import { ContainerOS, ListContainersItem, PortBinding } from '@microsoft/vscode-container-client';
+import * as vscode from 'vscode';
 import { ext } from "../../extensionVariables";
 import { MultiSelectNode } from '../../utils/multiSelectNodes';
+import { getDockerOSType } from '../../utils/osUtils';
 import { getTreeId } from "../LocalRootTreeItemBase";
-import { resolveTooltipMarkdown } from '../resolveTooltipMarkdown';
 import { ToolTipParentTreeItem } from '../ToolTipTreeItem';
+import { resolveTooltipMarkdown } from '../resolveTooltipMarkdown';
 import { getContainerStateIcon } from "./ContainerProperties";
 import { DockerContainerInfo } from './ContainersTreeItem';
 import { FilesTreeItem } from "./files/FilesTreeItem";
-import { ContainerOS, ListContainersItem, PortBinding } from '../../runtimes/docker';
-import { getDockerOSType } from '../../utils/osUtils';
 
 /**
  * This interface defines properties used by the Remote Containers extension. These properties must not be removed from this class.
@@ -95,6 +95,8 @@ export class ContainerTreeItem extends ToolTipParentTreeItem implements MultiSel
     public get iconPath(): vscode.ThemeIcon {
         if (this._item.status?.includes('(unhealthy)')) {
             return new vscode.ThemeIcon('warning', new vscode.ThemeColor('problemsWarningIcon.foreground'));
+        } else if (this._item.status?.includes('(health: starting)')) {
+            return new vscode.ThemeIcon('debug-rerun', new vscode.ThemeColor('debugIcon.startForeground'));
         } else {
             return getContainerStateIcon(this._item.state);
         }

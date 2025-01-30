@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See LICENSE.md in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ContainerOS } from '@microsoft/vscode-container-client';
 import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { ContainerOS } from '../runtimes/docker';
 import { ext } from '../extensionVariables';
 
 export async function getDockerOSType(): Promise<ContainerOS> {
@@ -36,8 +36,8 @@ export function isMac(): boolean {
     return os.platform() === 'darwin';
 }
 
-export function isArm64Mac(): boolean {
-    return isMac() && os.arch() === 'arm64';
+export function isArm64(): boolean {
+    return os.arch() === 'arm64';
 }
 
 export function isLinux(): boolean {

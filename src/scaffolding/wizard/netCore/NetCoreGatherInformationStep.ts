@@ -11,22 +11,16 @@ import { getValidImageNameFromPath } from '../../../utils/getValidImageName';
 import { getNetCoreProjectInfo } from '../../../utils/netCoreUtils';
 import { GatherInformationStep } from '../GatherInformationStep';
 import { NetCoreScaffoldingWizardContext } from './NetCoreScaffoldingWizardContext';
-
-// 1.23.9 contains the fix to not overwrite existing assets
-const minCSharpVersionString = '1.23.9';
+import { CSharpExtensionExports, cSharpExtensionId, getMinimumCSharpExtensionExports } from './netCoreStepUtils';
 
 // All supported .NET versions no longer have "core" in the name
 const aspNetBaseImage = 'mcr.microsoft.com/dotnet/aspnet';
 const consoleNetBaseImage = 'mcr.microsoft.com/dotnet/runtime';
 const netSdkImage = 'mcr.microsoft.com/dotnet/sdk';
 
-const cSharpExtensionId = 'ms-dotnettools.csharp';
 const cSharpConfigId = 'csharp';
 const cSharpPromptSetting = 'suppressBuildAssetsNotification';
-interface CSharpExtensionExports {
-    // This is a subset of the C# extension's exports but contains all we care about
-    initializationFinished(): Promise<void>;
-}
+const NetCorePreviewVersion = 10;
 
 export class NetCoreGatherInformationStep extends GatherInformationStep<NetCoreScaffoldingWizardContext> {
     private targetFramework: string;
@@ -60,10 +54,14 @@ export class NetCoreGatherInformationStep extends GatherInformationStep<NetCoreS
             wizardContext.netCoreRuntimeBaseImage = wizardContext.platform === '.NET: ASP.NET Core' ? `${aspNetBaseImage}:${netCoreVersion.major}.${netCoreVersion.minor}` : `${consoleNetBaseImage}:${netCoreVersion.major}.${netCoreVersion.minor}`;
             wizardContext.netCoreSdkBaseImage = `${netSdkImage}:${netCoreVersion.major}.${netCoreVersion.minor}`;
 
-            // append '-preview' at the end of version string to support new .NET 8 preview release naming
-            if (netCoreVersion.major === 8) {
+            if (netCoreVersion.major >= NetCorePreviewVersion) {
                 wizardContext.netCoreRuntimeBaseImage = `${wizardContext.netCoreRuntimeBaseImage}-preview`;
                 wizardContext.netCoreSdkBaseImage = `${wizardContext.netCoreSdkBaseImage}-preview`;
+            }
+            // append '-nanoserver-ltsc2022' for windows base images for .NET 8+'s new naming convention
+            if (wizardContext.netCorePlatformOS === 'Windows') {
+                wizardContext.netCoreRuntimeBaseImage = `${wizardContext.netCoreRuntimeBaseImage}-nanoserver-1809`;
+                wizardContext.netCoreSdkBaseImage = `${wizardContext.netCoreSdkBaseImage}-nanoserver-1809`;
             }
 
             // change default user to adapt to Debian 12
@@ -97,7 +95,7 @@ export class NetCoreGatherInformationStep extends GatherInformationStep<NetCoreS
     private async ensureNetCoreBuildTasks(wizardContext: NetCoreScaffoldingWizardContext): Promise<void> {
         let cSharpExtensionExports: CSharpExtensionExports;
         try {
-            cSharpExtensionExports = await this.getMinimumCSharpExtensionExports();
+            cSharpExtensionExports = await getMinimumCSharpExtensionExports();
         } catch (err) {
             // Suppress report issue and rethrow
             wizardContext.errorHandling.suppressReportIssue = true;
@@ -143,18 +141,5 @@ export class NetCoreGatherInformationStep extends GatherInformationStep<NetCoreS
             // Restore the settings for the C# asset generation prompt to their previous value
             await cSharpPromptConfig.update(cSharpPromptSetting, oldSuppressSettings.globalValue, vscode.ConfigurationTarget.Global);
         }
-    }
-
-    private async getMinimumCSharpExtensionExports(): Promise<CSharpExtensionExports> {
-        const cSharpExtension: vscode.Extension<CSharpExtensionExports> | undefined = vscode.extensions.getExtension(cSharpExtensionId);
-        const cSharpExtensionVersion: semver.SemVer | undefined = cSharpExtension ? new semver.SemVer((<{ version: string }>cSharpExtension.packageJSON).version) : undefined;
-
-        if (!cSharpExtension || !cSharpExtensionVersion) {
-            throw new Error(vscode.l10n.t('Cannot generate Dockerfiles for a .NET project unless the C# extension is installed.'));
-        } else if (semver.lt(cSharpExtensionVersion, minCSharpVersionString)) {
-            throw new Error(vscode.l10n.t('Cannot generate Dockerfiles for a .NET project unless version {0} or higher of the C# extension is installed.', minCSharpVersionString));
-        }
-
-        return await cSharpExtension.activate();
     }
 }

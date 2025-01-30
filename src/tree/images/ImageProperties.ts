@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See LICENSE.md in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ListImagesItem } from "../../runtimes/docker";
+import { ListImagesItem } from "@microsoft/vscode-container-client";
 import { ThemeIcon, workspace } from "vscode";
 import { configPrefix } from "../../constants";
 import { trimWithElipsis } from "../../utils/trimWithElipsis";
@@ -11,15 +11,27 @@ import { CommonGroupBy, CommonProperty, commonProperties, getCommonGroupIcon, ge
 import { ITreePropertyInfo } from '../settings/ITreeSettingInfo';
 import { NormalizedImageNameInfo } from "./NormalizedImageNameInfo";
 
-export type ImageProperty = CommonProperty | 'FullTag' | 'ImageId' | 'Registry' | 'Repository' | 'RepositoryName' | 'RepositoryNameAndTag' | 'Tag';
+export type ImageProperty =
+    | CommonProperty
+    | 'FullTag'
+    | 'ImageId'
+    | 'Registry'
+    | 'RegistryAndPath'
+    | 'Repository'
+    | 'RepositoryNameShort'
+    | 'RepositoryName'
+    | 'RepositoryNameAndTag'
+    | 'Tag';
 
 export const imageProperties: ITreePropertyInfo<ImageProperty>[] = [
     ...commonProperties,
     { property: 'FullTag', exampleValue: 'example.azurecr.io/hello-world:latest' },
     { property: 'ImageId', exampleValue: 'd9d09edd6115' },
     { property: 'Registry', exampleValue: 'example.azurecr.io' },
-    { property: 'Repository', exampleValue: 'example.azurecr.io/hello-world' },
-    { property: 'RepositoryName', exampleValue: 'hello-world' },
+    { property: 'RegistryAndPath', exampleValue: 'example.azurecr.io/my-path/hello-world' },
+    { property: 'Repository', exampleValue: 'example.azurecr.io' },
+    { property: 'RepositoryNameShort', exampleValue: 'hello-world' },
+    { property: 'RepositoryName', exampleValue: 'my-path/hello-world' },
     { property: 'RepositoryNameAndTag', exampleValue: 'hello-world:latest' },
     { property: 'Tag', exampleValue: 'latest' },
     { property: 'Size', exampleValue: '27 MB' },
@@ -28,9 +40,11 @@ export const imageProperties: ITreePropertyInfo<ImageProperty>[] = [
 export function getImageGroupIcon(property: ImageProperty | CommonGroupBy): ThemeIcon {
     switch (property) {
         case 'Registry':
+        case 'RegistryAndPath':
             return new ThemeIcon('briefcase');
         case 'Repository':
         case 'RepositoryName':
+        case 'RepositoryNameShort':
             return new ThemeIcon('repo');
         case 'FullTag':
         case 'ImageId':
@@ -57,11 +71,17 @@ export function getImagePropertyValue(item: ListImagesItem, property: ImagePrope
         case 'Registry':
             result = normalizedImageNameInfo.normalizedRegistry;
             break;
+        case 'RegistryAndPath':
+            result = normalizedImageNameInfo.normalizedRegistryAndPath;
+            break;
         case 'Repository':
             result = normalizedImageNameInfo.normalizedRegistryAndImageName;
             break;
         case 'RepositoryName':
             result = normalizedImageNameInfo.normalizedImageName;
+            break;
+        case 'RepositoryNameShort':
+            result = normalizedImageNameInfo.normalizedImageShortName;
             break;
         case 'RepositoryNameAndTag':
             result = normalizedImageNameInfo.normalizedImageNameAndTag;

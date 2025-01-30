@@ -6,7 +6,7 @@
 import * as fse from 'fs-extra';
 import * as path from 'path';
 import { l10n, Task } from 'vscode';
-import { DockerPlatform } from '../debugging/DockerPlatformHelper';
+import { DockerPlatform } from '../debugging/DockerDebugPlatformHelper';
 import { ext } from '../extensionVariables';
 import { cloneObject } from '../utils/cloneObject';
 import { resolveVariables } from '../utils/resolveVariables';
@@ -15,7 +15,7 @@ import { DockerTaskProvider } from './DockerTaskProvider';
 import { NetCoreBuildTaskDefinition } from './netcore/NetCoreTaskHelper';
 import { NodeBuildTaskDefinition } from './node/NodeTaskHelper';
 import { defaultVsCodeLabels, getAggregateLabels } from './TaskDefinitionBase';
-import { DockerBuildTaskContext, TaskHelper, throwIfCancellationRequested } from './TaskHelper';
+import { DockerBuildTaskContext, normalizePlatform, TaskHelper, throwIfCancellationRequested } from './TaskHelper';
 
 export interface DockerBuildTaskDefinition extends NetCoreBuildTaskDefinition, NodeBuildTaskDefinition {
     label?: string;
@@ -59,6 +59,7 @@ export class DockerBuildTaskProvider extends DockerTaskProvider {
             labels: getAggregateLabels(options.labels, defaultVsCodeLabels),
             tags: [options.tag],
             stage: options.target,
+            platform: normalizePlatform(options.platform),
             customOptions: options.customOptions,
             path: options.context,
         });

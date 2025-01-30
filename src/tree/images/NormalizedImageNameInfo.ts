@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See LICENSE.md in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ImageNameInfo } from '../../runtimes/docker';
+import { ImageNameInfo } from '@microsoft/vscode-container-client';
 
 const noneTag: string = '<none>';
 
@@ -68,6 +68,30 @@ export class NormalizedImageNameInfo {
      */
     public get normalizedRegistry(): string {
         return this.imageNameInfo.registry || 'docker.io';
+    }
+
+    /**
+     * Registry (if it is truthy), otherwise 'docker.io'
+     */
+    public get normalizedRegistryAndPath(): string {
+      if (this.normalizedRepositoryPath.length === 0) {
+        return this.normalizedRegistry;
+    }
+      return this.normalizedRegistry + "/" + this.normalizedRepositoryPath;
+    }
+
+    /**
+     * The short image name or '<none>' if the image name is falsy
+     */
+    public get normalizedImageShortName(): string {
+      return this.normalizedImageName.split("/").pop() || noneTag;
+    }
+
+    /**
+     * The repository path or empty string if the image path is empty
+     */
+    public get normalizedRepositoryPath(): string {
+      return this.normalizedImageName.split("/").slice(0, -1).join("/");
     }
 
     /**

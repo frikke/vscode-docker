@@ -4,30 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TelemetryEvent } from '@microsoft/compose-language-service/lib/client/TelemetryEvent';
-import { IActionContext, UserCancelledError, callWithTelemetryAndErrorHandling, createExperimentationService, registerErrorHandler, registerEvent, registerReportIssueCommand, registerUIExtensionVariables } from '@microsoft/vscode-azext-utils';
+import { callWithTelemetryAndErrorHandling, createExperimentationService, IActionContext, registerErrorHandler, registerEvent, registerUIExtensionVariables, UserCancelledError } from '@microsoft/vscode-azext-utils';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { ConfigurationParams, DidChangeConfigurationNotification, DocumentSelector, LanguageClient, LanguageClientOptions, Middleware, ServerOptions, TransportKind } from 'vscode-languageclient/node';
 import * as tas from 'vscode-tas-client';
 import { registerCommands } from './commands/registerCommands';
 import { registerDebugProvider } from './debugging/DebugHelper';
-import { ContainerFilesProvider } from './runtimes/files/ContainerFilesProvider';
 import { DockerExtensionApi } from './DockerExtensionApi';
 import { DockerfileCompletionItemProvider } from './dockerfileCompletionItemProvider';
 import { ext } from './extensionVariables';
+import { AutoConfigurableDockerClient } from './runtimes/clients/AutoConfigurableDockerClient';
+import { AutoConfigurableDockerComposeClient } from './runtimes/clients/AutoConfigurableDockerComposeClient';
+import { ContainerRuntimeManager } from './runtimes/ContainerRuntimeManager';
+import { ContainerFilesProvider } from './runtimes/files/ContainerFilesProvider';
+import { OrchestratorRuntimeManager } from './runtimes/OrchestratorRuntimeManager';
 import { registerTaskProviders } from './tasks/TaskHelper';
 import { ActivityMeasurementService } from './telemetry/ActivityMeasurementService';
 import { registerListeners } from './telemetry/registerListeners';
 import { registerTrees } from './tree/registerTrees';
-import { AzureAccountExtensionListener } from './utils/AzureAccountExtensionListener';
-import { DocumentSettingsClientFeature } from './utils/DocumentSettingsClientFeature';
-import { migrateOldEnvironmentSettingsIfNeeded } from './utils/migrateOldEnvironmentSettingsIfNeeded';
-import { ContainerRuntimeManager } from './runtimes/ContainerRuntimeManager';
-import { OrchestratorRuntimeManager } from './runtimes/OrchestratorRuntimeManager';
-import { AutoConfigurableDockerClient } from './runtimes/clients/AutoConfigurableDockerClient';
-import { AutoConfigurableDockerComposeClient } from './runtimes/clients/AutoConfigurableDockerComposeClient';
+import { AlternateYamlLanguageServiceClientFeature } from './utils/AlternateYamlLanguageServiceClientFeature';
 import { AzExtLogOutputChannelWrapper } from './utils/AzExtLogOutputChannelWrapper';
 import { logDockerEnvironment, logSystemInfo } from './utils/diagnostics';
+import { DocumentSettingsClientFeature } from './utils/DocumentSettingsClientFeature';
+import { migrateOldEnvironmentSettingsIfNeeded } from './utils/migrateOldEnvironmentSettingsIfNeeded';
+import { registerDockerContextStatusBarEvent } from './utils/registerDockerContextStatusBarItems';
 
 export type KeyInfo = { [keyName: string]: string };
 
@@ -77,9 +78,7 @@ export async function activateInternal(ctx: vscode.ExtensionContext, perfStats: 
         // (new SurveyManager()).activate();
 
         // Remove the "Report Issue" button from all error messages in favor of the command
-        // TODO: use built-in issue reporter if/when support is added to include arbitrary info in addition to repro steps (which we would leave blank to force the user to type *something*)
         registerErrorHandler(ctx => ctx.errorHandling.suppressReportIssue = true);
-        registerReportIssueCommand('vscode-docker.help.reportIssue');
 
         // Set up Dockerfile completion provider
         ctx.subscriptions.push(
@@ -118,6 +117,9 @@ export async function activateInternal(ctx: vscode.ExtensionContext, perfStats: 
         registerTrees();
         registerCommands();
 
+        // Set up docker context status bar items
+        registerDockerContextStatusBarEvent(ctx);
+
         registerDebugProvider(ctx);
         registerTaskProviders(ctx);
 
@@ -131,13 +133,16 @@ export async function activateInternal(ctx: vscode.ExtensionContext, perfStats: 
     // Don't wait
     void migrateOldEnvironmentSettingsIfNeeded();
 
+    // Call command to activate registry provider extensions
+    // Don't wait
+    void vscode.commands.executeCommand('vscode-docker.activateRegistryProviders');
+
     return new DockerExtensionApi(ctx);
 }
 
 export async function deactivateInternal(ctx: vscode.ExtensionContext): Promise<void> {
     await callWithTelemetryAndErrorHandling('docker.deactivate', async (activateContext: IActionContext) => {
         activateContext.telemetry.properties.isActivationEvent = 'true';
-        AzureAccountExtensionListener.dispose();
 
         await Promise.all([
             dockerfileLanguageClient.stop(),
@@ -336,6 +341,7 @@ function activateComposeLanguageClient(ctx: vscode.ExtensionContext): void {
         );
         composeLanguageClient.registerProposedFeatures();
         composeLanguageClient.registerFeature(new DocumentSettingsClientFeature(composeLanguageClient));
+        composeLanguageClient.registerFeature(new AlternateYamlLanguageServiceClientFeature());
 
         registerEvent('compose-langserver-event', composeLanguageClient.onTelemetry, (context: IActionContext, evtArgs: TelemetryEvent) => {
             context.telemetry.properties.langServerEventName = evtArgs.eventName;
